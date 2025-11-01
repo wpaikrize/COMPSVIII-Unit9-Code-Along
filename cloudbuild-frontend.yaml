@@ -1,1 +1,49 @@
-# Paste the backend cloudbuild-frontend.yaml here
+steps:
+  # Install frontend dependencies
+  - name: gcr.io/cloud-builders/npm
+    dir: frontend
+    args:
+      - install
+
+  # Build the production bundle
+  - name: gcr.io/cloud-builders/npm
+    dir: frontend
+    args:
+      - run
+      - build
+
+  # Build the frontend container image
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --tag
+      - gcr.io/$PROJECT_ID/app-frontend:$SHORT_SHA
+      - ./frontend
+
+  # Push the image to Container Registry
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - gcr.io/$PROJECT_ID/app-frontend:$SHORT_SHA
+
+  # Deploy to Cloud Run (static hosting via container)
+  - name: gcr.io/cloud-builders/gcloud
+    args:
+      - run
+      - deploy
+      - app-frontend
+      - --image
+      - gcr.io/$PROJECT_ID/app-frontend:$SHORT_SHA
+      - --platform
+      - managed
+      - --region
+      - us-central1
+      - --allow-unauthenticated
+      - --port
+      - "80"
+
+images:
+  - gcr.io/$PROJECT_ID/app-frontend:$SHORT_SHA
+
+options:
+  logging: CLOUD_LOGGING_ONLY
