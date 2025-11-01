@@ -16,6 +16,8 @@ steps:
   - name: gcr.io/cloud-builders/docker
     args:
       - build
+      - --build-arg
+      - VITE_API_URL=${_FRONTEND_API_URL}
       - --tag
       - gcr.io/$PROJECT_ID/app-frontend:$SHORT_SHA
       - ./frontend
@@ -47,3 +49,6 @@ images:
 
 options:
   logging: CLOUD_LOGGING_ONLY
+
+substitutions:
+  _FRONTEND_API_URL: https://app-backend-591065638063.us-central1.run.app
