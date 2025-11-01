@@ -26,7 +26,7 @@ steps:
       - push
       - gcr.io/$PROJECT_ID/app-frontend:$SHORT_SHA
 
-  # Deploy to Cloud Run (static hosting via container)
+  # Deploy to Cloud Run
   - name: gcr.io/cloud-builders/gcloud
     args:
       - run
