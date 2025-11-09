@@ -1,0 +1,109 @@
+name: Task Tracker CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Task Tracker code
+      uses: actions/checkout@v4
+    
+    - name: Set up Node.js for Task Tracker
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: |
+          backend/package-lock.json
+          frontend/package-lock.json
+    
+    - name: Install Task Tracker backend dependencies
+      run: |
+        cd backend
+        npm ci
+    
+    - name: Install Task Tracker frontend dependencies
+      run: |
+        cd frontend
+        npm ci
+    
+    - name: Test Task Tracker API
+      run: |
+        cd backend
+        npm test
+    
+    - name: Test Task Tracker frontend
+      run: |
+        cd frontend
+        npm test
+    
+    - name: Authenticate to Google Cloud
+      if: success()
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
+    
+    - name: Set up Google Cloud CLI
+      if: success()
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
+    
+    - name: Configure Docker for Task Tracker deployment
+      if: success()
+      run: gcloud auth configure-docker
+    
+    - name: Build and push Task Tracker backend
+      if: success()
+      run: |
+        cd backend
+        docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/task-backend:${{ github.sha }} .
+        docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/task-backend:${{ github.sha }}
+    
+    - name: Build and push Task Tracker frontend
+      if: success()
+      run: |
+        cd frontend
+        # Get the backend URL for the Task Tracker frontend
+        BACKEND_URL=$(gcloud run services describe task-backend --region=${{ secrets.GCP_REGION }} --format='value(status.url)' 2>/dev/null || echo "https://task-backend-placeholder.run.app")
+        docker build --build-arg VITE_API_URL=$BACKEND_URL -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/task-frontend:${{ github.sha }} .
+        docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/task-frontend:${{ github.sha }}
+    
+    - name: Deploy Task Tracker backend
+      if: success()
+      run: |
+        gcloud run deploy task-backend \
+          --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/task-backend:${{ github.sha }} \
+          --region ${{ secrets.GCP_REGION }} \
+          --platform managed \
+          --allow-unauthenticated \
+          --port 3000 \
+          --memory 512Mi \
+          --cpu 1
+    
+    - name: Deploy Task Tracker frontend
+      if: success()
+      run: |
+        gcloud run deploy task-frontend \
+          --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/task-frontend:${{ github.sha }} \
+          --region ${{ secrets.GCP_REGION }} \
+          --platform managed \
+          --allow-unauthenticated \
+          --port 80 \
+          --memory 512Mi \
+          --cpu 1
+    
+    - name: Get Task Tracker URLs
+      if: success()
+      run: |
+        echo "Task Tracker Backend: $(gcloud run services describe task-backend --region=${{ secrets.GCP_REGION }} --format='value(status.url)')"
+        echo "Task Tracker Frontend: $(gcloud run services describe task-frontend --region=${{ secrets.GCP_REGION }} --format='value(status.url)')"
+
+
