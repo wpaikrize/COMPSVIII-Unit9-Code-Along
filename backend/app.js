@@ -6,12 +6,14 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// In-memory storage
-let tasks = [
+const createInitialTasks = () => ([
   { id: 1, title: 'Learn Docker', completed: false, createdAt: new Date().toISOString() },
   { id: 2, title: 'Deploy to Cloud Run', completed: false, createdAt: new Date().toISOString() },
   { id: 3, title: 'Set up CI/CD', completed: true, createdAt: new Date().toISOString() }
-];
+]);
+
+// In-memory storage
+let tasks = createInitialTasks();
 
 // Get all tasks
 app.get('/api/tasks', (req, res) => {
@@ -52,6 +54,14 @@ app.delete('/api/tasks/:id', (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+
+// Export the app for testing
+module.exports = app;
+module.exports.resetTasks = () => {
+  tasks = createInitialTasks();
+};
